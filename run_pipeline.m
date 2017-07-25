@@ -94,14 +94,14 @@ data.F_dark = F_dark;
 %% now run CNMF on patches on the downsampled file, set parameters first
 
 sizY = data.sizY;                       % size of data matrix
-patch_size = [40,40];                   % size of each patch along each dimension (optional, default: [32,32])
-overlap = [8,8];                        % amount of overlap in each dimension (optional, default: [4,4])
+patch_size = [32,32];                   % size of each patch along each dimension (optional, default: [32,32])
+overlap = [4,4];                        % amount of overlap in each dimension (optional, default: [4,4])
 
 patches = construct_patches(sizY(1:end-1),patch_size,overlap);
-K = 7;                                            % number of components to be found
-tau = 8;                                          % std of gaussian kernel (size of neuron) 
+K = 4;                                            % number of components to be found
+tau = 6;                                          % std of gaussian kernel (size of neuron) 
 p = 0;                                            % order of autoregressive system (p = 0 no dynamics, p=1 just decay, p = 2, both rise and decay)
-merge_thr = 0.8;                                  % merging threshold
+merge_thr = 0.7;                                  % merging threshold
 sizY = data.sizY;
 
 options = CNMFSetParms(...
@@ -111,7 +111,7 @@ options = CNMFSetParms(...
     'temporal_iter',2,...                       % number of block-coordinate descent steps 
     'cluster_pixels',false,...
     'ssub',2,...                                % spatial downsampling when processing
-    'tsub',4,...                                % further temporal downsampling when processing
+    'tsub',10,...                                % further temporal downsampling when processing
     'fudge_factor',0.96,...                     % bias correction for AR coefficients
     'merge_thr',merge_thr,...                   % merging threshold
     'gSig',tau,... 
@@ -132,7 +132,7 @@ Cn = correlation_image_max(single(data.Y),8);
 [ROIvars.rval_space,ROIvars.rval_time,ROIvars.max_pr,ROIvars.sizeA,keep] = classify_components(data,A,C,b,f,YrA,options);
 
 %% run GUI for modifying component selection (optional, close twice to save values)
-run_GUI = true;
+run_GUI = false;
 if run_GUI
     Coor = plot_contours(A,Cn,options,1); close;
     GUIout = ROI_GUI(A,options,Cn,Coor,keep,ROIvars);   

@@ -13,7 +13,7 @@ end
         % folder where all the files are located. Currently supported .tif,
         % .hdf5, .raw, .avi, and .mat files
 files = subdir(fullfile(foldername,'*.tif'));   % list of filenames (will search all subdirectories)
-FOV = [512,512];
+FOV = [5  12,512];
 numFiles = length(files);
  
 %% motion correct (and save registered h5 files as 2d matrices (to be used in the end)..)
@@ -58,7 +58,7 @@ else
 end
     
 fr = 30;                                         % frame rate
-tsub = 5;                                        % degree of downsampling (for 30Hz imaging rate you can try also larger, e.g. 8-10)
+tsub = 10;                                        % degree of downsampling (for 30Hz imaging rate you can try also larger, e.g. 8-10)
 ds_filename = [foldername,'/ds_data.mat'];
 data_type = class(read_file(h5_files(1).name,1,1));
 data = matfile(ds_filename,'Writable',true);

@@ -13,7 +13,7 @@ end
         % folder where all the files are located. Currently supported .tif,
         % .hdf5, .raw, .avi, and .mat files
 files = subdir(fullfile(foldername,'*.tif'));   % list of filenames (will search all subdirectories)
-FOV = [5  12,512];
+FOV = [512,512];
 numFiles = length(files);
  
 %% motion correct (and save registered h5 files as 2d matrices (to be used in the end)..)
@@ -58,7 +58,7 @@ else
 end
     
 fr = 30;                                         % frame rate
-tsub = 10;                                        % degree of downsampling (for 30Hz imaging rate you can try also larger, e.g. 8-10)
+tsub = 8;                                        % degree of downsampling (for 30Hz imaging rate you can try also larger, e.g. 8-10)
 ds_filename = [foldername,'/ds_data.mat'];
 data_type = class(read_file(h5_files(1).name,1,1));
 data = matfile(ds_filename,'Writable',true);
@@ -105,8 +105,8 @@ patch_size = [32,32];                   % size of each patch along each dimensio
 overlap = [4,4];                        % amount of overlap in each dimension (optional, default: [4,4])
  
 patches = construct_patches(sizY(1:end-1),patch_size,overlap);
-K = 4;                                            % number of components to be found
-tau = 6;                                          % std of gaussian kernel (size of neuron) 
+K = 2;                                            % number of components to be found
+tau = 5;                                          % std of gaussian kernel (size of neuron) 
 p = 0;                                            % oarder of autoregressive system (p = 0 no dynamics, p=1 just decay, p = 2, both rise and decay)
 merge_thr = 0.7;                                  % merging threshold
 sizY = data.sizY;
@@ -129,17 +129,17 @@ options = CNMFSetParms(...
     );
  
 %% Run on patches (around 15 minutes)
- 
+tic;
 [A,b,C,f,S,P,RESULTS,YrA] = run_CNMF_patches(data,K,patches,tau,p,options);
- 
+toc;
 %% compute correlation image on a small sample of the data (optional - for visualization purposes) 
 Cn = correlation_image_max(single(data.Y),8);
  
 %% classify components
-[ROIvars.rval_space,ROIvars.rval_time,ROIvars.max_pr,ROIvars.sizeA,keep] = classify_components(data,A,C,b,f,YrA,options);
+[ROIvars.rval_space,ROIvars.rval_time,ROIvars.max_pr,ROIvars.sizeA,keep,ROIvars.fitness,ROIvars.fitness_delta] = classify_components(data,A,C,b,f,YrA,options);
  
 %% run GUI for modifying component selection (optional, close twice to save values)
-run_GUI = false;
+run_GUI = true;
 if run_GUI
     Coor = plot_contours(A,Cn,options,1); close;
     GUIout = ROI_GUI(A,options,Cn,Coor,keep,ROIvars);   
@@ -227,13 +227,27 @@ C_df = cellfun(@(x,y) x./y, C_us, F0 ,'un',0);                            % DF/F
  %% Save important stuff
 figure;
 [Coor, json_file] = plot_contours(A_keep,Cn,options,1);
-saveas(gcf,strcat(folder_name,'/contourmap','.fig')); close;
+saveas(gcf,strcat(foldername,'/contourmap','.fig')); close;
 pause(10)
  
  
-save(fullfile(folder_name,'Cd'),'Cd','-v7.3');
-save(fullfile(folder_name,'Sp'),'Sp','-v7.3');
-save(fullfile(folder_name,'Fdf'),'F_df','-v7.3');
+save(fullfile(foldername,'Cd'),'Cd','-v7.3');
+save(fullfile(foldername,'Sp'),'Sp','-v7.3');
+save(fullfile(foldername,'Fdf'),'F_df','-v7.3');
  
-file_save_loc = strcat(folder_name,'/centroids','.json');
+file_save_loc = strcat(foldername,'/centroids','.json');
 savejson('jmesh',json_file,file_save_loc);
+%
+play_movie({data.Y},{''},0,1000)
+run_movie(data.Y, A_keep, C_keep, Cn, [294,734], Coor, [], 0, 1, 1, fullfile(foldername,'717PosterMovieNoCell'), S)
+
+avi_name =  fullfile(foldername,'717PosterMovieNoCell');
+avi_file = VideoWriter(avi_name);
+    open(avi_file);
+for t=1:T
+    h_img = imagesc(data.Y(:, :, t), min_max);  
+    frame = getframe(gcf);
+    writeVideo(avi_file, frame);
+    drawnow();
+end
+close(avi_file);

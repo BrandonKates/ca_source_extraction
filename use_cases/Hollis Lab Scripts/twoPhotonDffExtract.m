@@ -9,7 +9,7 @@ path_to_package = '../ca_source_extraction';   % path to the folder that contain
 addpath(genpath(path_to_package));
              
 %filename = '/Users/Brandon/Desktop/TestMotionCorrection/C1-018_rig.tif';      % path to stack tiff file
-filename = '/Volumes/Samsung USB/Hollis lab_videos 2min recording_7.11.17/#717_7.11.17/#717_7.10.17-pm_002_rig.tif';
+filename = 'C:\Users\User\Desktop\Test720\#720_7.10.17-pm_002.tif';
 %foldername = '/Volumes/Samsung USB/Hollis lab_videos 2min recording_7.11.17/#717_7.11.17/#717_7.10.17-pm_002_rig';    % path to folder that contains a sequence of tiff files
 %%
 if exist([filename(1:end-3),'mat'],'file')
@@ -95,7 +95,7 @@ plot_components_GUI(double(data.Y),A_keep,C2,b,f2,Cn,options);
 [dir_nm,file_nm,ext] = fileparts(filename);
 
 [Coor, json_file] = plot_contours(A_keep,Cn,options,1);
-saveas(gcf,strcat(dir_nm, '/' ,file_nm,'.png')); close;
+%saveas(gcf,strcat(dir_nm, '/' ,file_nm,'.png')); close;
 
 nneurons=length(json_file);
 c_df = C_df';
@@ -112,3 +112,5 @@ file_save_loc = strcat(dir_nm, '/' ,file_nm,'.json');
 
 %% Video
 %make_patch_video(A_keep,C2,b,f2,data.Yr,Coor,options)
+
+[DFF,F0] = detrend_df_f(A_keep,b,C_keep,f2,YrA2, options);

@@ -58,7 +58,7 @@ else
 end
     
 fr = 30;                                         % frame rate
-tsub = 8;                                        % degree of downsampling (for 30Hz imaging rate you can try also larger, e.g. 8-10)
+tsub = 5;                                        % degree of downsampling (for 30Hz imaging rate you can try also larger, e.g. 8-10)
 ds_filename = [foldername,'/ds_data.mat'];
 data_type = class(read_file(h5_files(1).name,1,1));
 data = matfile(ds_filename,'Writable',true);
@@ -118,7 +118,7 @@ options = CNMFSetParms(...
     'temporal_iter',2,...                       % number of block-coordinate descent steps 
     'cluster_pixels',false,...
     'ssub',2,...                                % spatial downsampling when processing
-    'tsub',10,...                                % further temporal downsampling when processing
+    'tsub',5,...                                % further temporal downsampling when processing
     'fudge_factor',0.96,...                     % bias correction for AR coefficients
     'merge_thr',merge_thr,...                   % merging threshold
     'gSig',tau,... 
@@ -137,7 +137,16 @@ Cn = correlation_image_max(single(data.Y),8);
  
 %% classify components
 [ROIvars.rval_space,ROIvars.rval_time,ROIvars.max_pr,ROIvars.sizeA,keep,ROIvars.fitness,ROIvars.fitness_delta] = classify_components(data,A,C,b,f,YrA,options);
- 
+%% classify components
+[ROIvars.rval_space,ROIvars.rval_time,ROIvars.max_pr,ROIvars.sizeA,keep] = classify_components(Y,A,C,b,f,YrA,options);
+
+%traces = prctfilt(C+YrA,8,1000,100);
+%ROIvars.fitness = compute_event_exceptionality(traces,0);
+%ROIvars.fitness_delta = compute_event_exceptionality(diff(traces,[],2),0);
+    
+% compute center of mass
+ROIvars.cm = com(A,options.d1,options.d2);
+ROIvars.C = C;
 %% run GUI for modifying component selection (optional, close twice to save values)
 run_GUI = true;
 if run_GUI
@@ -161,7 +170,7 @@ C_keep = C(keep,:);
  
  
 %% deconvolve (downsampled) temporal components plot GUI with components (optional)
- 
+P.p=2;
 tic;
 [C_keep,f_keep,Pk,Sk,YrAk] = update_temporal_components_fast(data,A_keep,b,C_keep,f,P,options);
 toc

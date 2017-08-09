@@ -15,7 +15,7 @@ end
 files = subdir(fullfile(foldername,'*.tif'));   % list of filenames (will search all subdirectories)
 FOV = [512,512];
 numFiles = length(files);
- 
+
 %% motion correct (and save registered h5 files as 2d matrices (to be used in the end)..)
 % register files one by one. use template obtained from file n to
 % initialize template of file n + 1; 
@@ -29,13 +29,13 @@ for i = 1:numFiles
     [folder_name,file_name,ext] = fileparts(fullname);    
     if motion_correct    
         if non_rigid
-            options_nonrigid = NoRMCorreSetParms('d1',512,'d2',512,'grid_size',[128,128],...
+            options_nonrigid = NoRMCorreSetParms('d1',FOV(1),'d2',FOV(2),'grid_size',[128,128],...
                 'overlap_pre',64,'mot_uf',4,'bin_width',200,'max_shift',24,'max_dev',8,'us_fac',50,...
                 'output_type','h5','h5_filename',fullfile(folder_name,[file_name,'_nr.h5']));
             [M,shifts,template] = normcorre_batch(fullname,options_nonrigid,template); 
             save(fullfile(folder_name,[file_name,'_shifts_nr.mat']),'shifts','-v7.3');           % save shifts of each file at the respective subfolder
         else    % perform rigid motion correction (faster, could be less accurate)
-            options_rigid = NoRMCorreSetParms('d1',FOV(1),'d2',FOV(2),'bin_width',100,'max_shift',32,...
+            options_rigid = NoRMCorreSetParms('d1',FOV(1),'d2',FOV(2),'bin_width',200,'max_shift',32,...
                 'output_type','h5','h5_filename',fullfile(folder_name,[file_name,'_rig.h5']));
             [M,shifts,template] = normcorre_batch(fullname,options_rigid,template); 
             save(fullfile(folder_name,[file_name,'_shifts_rig.mat']),'shifts','-v7.3');           % save shifts of each file at the respective subfolder
@@ -118,7 +118,7 @@ options = CNMFSetParms(...
     'temporal_iter',2,...                       % number of block-coordinate descent steps 
     'cluster_pixels',false,...
     'ssub',2,...                                % spatial downsampling when processing
-    'tsub',5,...                                % further temporal downsampling when processing
+    'tsub',3,...                                % further temporal downsampling when processing
     'fudge_factor',0.96,...                     % bias correction for AR coefficients
     'merge_thr',merge_thr,...                   % merging threshold
     'gSig',tau,... 
@@ -138,7 +138,7 @@ Cn = correlation_image_max(single(data.Y),8);
 %% classify components
 [ROIvars.rval_space,ROIvars.rval_time,ROIvars.max_pr,ROIvars.sizeA,keep,ROIvars.fitness,ROIvars.fitness_delta] = classify_components(data,A,C,b,f,YrA,options);
 %% classify components
-[ROIvars.rval_space,ROIvars.rval_time,ROIvars.max_pr,ROIvars.sizeA,keep] = classify_components(Y,A,C,b,f,YrA,options);
+%[ROIvars.rval_space,ROIvars.rval_time,ROIvars.max_pr,ROIvars.sizeA,keep] = classify_components(Y,A,C,b,f,YrA,options);
 
 %traces = prctfilt(C+YrA,8,1000,100);
 %ROIvars.fitness = compute_event_exceptionality(traces,0);
@@ -164,7 +164,7 @@ figure;
     ax2 = subplot(122); plot_contours(A(:,throw),Cn,options,0,[],Coor,1,find(throw));title('Rejected components','fontweight','bold','fontsize',14);
     linkaxes([ax1,ax2],'xy')
 end
-    %% keep only the active components    
+%% keep only the active components    
 A_keep = A(:,keep);
 C_keep = C(keep,:);
  

@@ -2,7 +2,14 @@
 clear;
 addpath(genpath('../NoRMCorre'));               % add the NoRMCorre motion correction package to MATLAB path
 gcp;        % start a parallel engine
-foldername = '';   
+ 
+manual = false;
+if manual
+    %foldername = 'F:\Test_run_pipeline_717';
+    foldername = 'C:\Users\User\Desktop\Test720';
+else
+    foldername = uigetdir;
+end
         % folder where all the files are located. Currently supported .tif,
         % .hdf5, .raw, .avi, and .mat files
 files = subdir(fullfile(foldername,'*.tif'));   % list of filenames (will search all subdirectories)
@@ -12,23 +19,23 @@ numFiles = length(files);
 %% motion correct (and save registered h5 files as 2d matrices (to be used in the end)..)
 % register files one by one. use template obtained from file n to
 % initialize template of file n + 1; 
-
+ 
 motion_correct = true;      % perform motion correction
 non_rigid = true;           % flag for non-rigid motion correction
-
+ 
 template = [];
 for i = 1:numFiles
     fullname = files(i).name;
     [folder_name,file_name,ext] = fileparts(fullname);    
     if motion_correct    
         if non_rigid
-            options_nonrigid = NoRMCorreSetParms('d1',512,'d2',512,'grid_size',[128,128],...
+            options_nonrigid = NoRMCorreSetParms('d1',FOV(1),'d2',FOV(2),'grid_size',[128,128],...
                 'overlap_pre',64,'mot_uf',4,'bin_width',200,'max_shift',24,'max_dev',8,'us_fac',50,...
                 'output_type','h5','h5_filename',fullfile(folder_name,[file_name,'_nr.h5']));
             [M,shifts,template] = normcorre_batch(fullname,options_nonrigid,template); 
             save(fullfile(folder_name,[file_name,'_shifts_nr.mat']),'shifts','-v7.3');           % save shifts of each file at the respective subfolder
         else    % perform rigid motion correction (faster, could be less accurate)
-            options_rigid = NoRMCorreSetParms('d1',FOV(1),'d2',FOV(2),'bin_width',100,'max_shift',32,...
+            options_rigid = NoRMCorreSetParms('d1',FOV(1),'d2',FOV(2),'bin_width',200,'max_shift',32,...
                 'output_type','h5','h5_filename',fullfile(folder_name,[file_name,'_rig.h5']));
             [M,shifts,template] = normcorre_batch(fullname,options_rigid,template); 
             save(fullfile(folder_name,[file_name,'_shifts_rig.mat']),'shifts','-v7.3');           % save shifts of each file at the respective subfolder
@@ -37,9 +44,9 @@ for i = 1:numFiles
         convert_file(fullname,'h5',fullfile(folder_name,[file_name,'_mc.h5']));
     end
 end
-
+ 
 %% downsample h5 files and save into a single memory mapped matlab file
-
+ 
 if motion_correct
     if non_rigid
         h5_files = subdir(fullfile(foldername,'*_nr.h5'));  % list of h5 files (modify 
@@ -92,18 +99,18 @@ for i = 1:numFiles
 end
 data.F_dark = F_dark;
 %% now run CNMF on patches on the downsampled file, set parameters first
-
+ 
 sizY = data.sizY;                       % size of data matrix
 patch_size = [32,32];                   % size of each patch along each dimension (optional, default: [32,32])
 overlap = [4,4];                        % amount of overlap in each dimension (optional, default: [4,4])
-
+ 
 patches = construct_patches(sizY(1:end-1),patch_size,overlap);
-K = 4;                                            % number of components to be found
-tau = 6;                                          % std of gaussian kernel (size of neuron) 
-p = 0;                                            % order of autoregressive system (p = 0 no dynamics, p=1 just decay, p = 2, both rise and decay)
+K = 2;                                            % number of components to be found
+tau = 5;                                          % std of gaussian kernel (size of neuron) 
+p = 0;                                            % oarder of autoregressive system (p = 0 no dynamics, p=1 just decay, p = 2, both rise and decay)
 merge_thr = 0.7;                                  % merging threshold
 sizY = data.sizY;
-
+ 
 options = CNMFSetParms(...
     'd1',sizY(1),'d2',sizY(2),...
     'search_method','ellipse','dist',3,...      % search locations when updating spatial components
@@ -111,7 +118,7 @@ options = CNMFSetParms(...
     'temporal_iter',2,...                       % number of block-coordinate descent steps 
     'cluster_pixels',false,...
     'ssub',2,...                                % spatial downsampling when processing
-    'tsub',10,...                                % further temporal downsampling when processing
+    'tsub',3,...                                % further temporal downsampling when processing
     'fudge_factor',0.96,...                     % bias correction for AR coefficients
     'merge_thr',merge_thr,...                   % merging threshold
     'gSig',tau,... 
@@ -120,49 +127,60 @@ options = CNMFSetParms(...
     'df_prctile',50,...                         % take the median of background fluorescence to compute baseline fluorescence 
     'fr',fr/tsub...
     );
-
+ 
 %% Run on patches (around 15 minutes)
-
+tic;
 [A,b,C,f,S,P,RESULTS,YrA] = run_CNMF_patches(data,K,patches,tau,p,options);
-
+toc;
 %% compute correlation image on a small sample of the data (optional - for visualization purposes) 
 Cn = correlation_image_max(single(data.Y),8);
-
+ 
 %% classify components
-[ROIvars.rval_space,ROIvars.rval_time,ROIvars.max_pr,ROIvars.sizeA,keep] = classify_components(data.Y,A,C,b,f,YrA,options);
+[ROIvars.rval_space,ROIvars.rval_time,ROIvars.max_pr,ROIvars.sizeA,keep,ROIvars.fitness,ROIvars.fitness_delta] = classify_components(data,A,C,b,f,YrA,options);
+%% classify components
+%[ROIvars.rval_space,ROIvars.rval_time,ROIvars.max_pr,ROIvars.sizeA,keep] = classify_components(Y,A,C,b,f,YrA,options);
 
+%traces = prctfilt(C+YrA,8,1000,100);
+%ROIvars.fitness = compute_event_exceptionality(traces,0);
+%ROIvars.fitness_delta = compute_event_exceptionality(diff(traces,[],2),0);
+    
+% compute center of mass
+ROIvars.cm = com(A,options.d1,options.d2);
+ROIvars.C = C;
 %% run GUI for modifying component selection (optional, close twice to save values)
-run_GUI = false;
+run_GUI = true;
 if run_GUI
     Coor = plot_contours(A,Cn,options,1); close;
     GUIout = ROI_GUI(A,options,Cn,Coor,keep,ROIvars);   
     options = GUIout{2};
     keep = GUIout{3};    
 end
-
+ 
 %% view contour plots of selected and rejected components (optional)
+if run_GUI
 throw = ~keep;
 figure;
     ax1 = subplot(121); plot_contours(A(:,keep),Cn,options,0,[],Coor,1,find(keep)); title('Selected components','fontweight','bold','fontsize',14);
     ax2 = subplot(122); plot_contours(A(:,throw),Cn,options,0,[],Coor,1,find(throw));title('Rejected components','fontweight','bold','fontsize',14);
     linkaxes([ax1,ax2],'xy')
-    
-    %% keep only the active components    
+end
+%% keep only the active components    
 A_keep = A(:,keep);
 C_keep = C(keep,:);
-
+ 
+ 
 %% deconvolve (downsampled) temporal components plot GUI with components (optional)
-
-%tic;
-%[C_keep,f_keep,Pk,Sk,YrAk] = update_temporal_components_fast(data,A_keep,b,C_keep,f,P,options);
-%toc
-
-%plot_components_GUI(data,A_keep,C_keep,b,f,Cn,options)
-
+P.p=2;
+tic;
+[C_keep,f_keep,Pk,Sk,YrAk] = update_temporal_components_fast(data,A_keep,b,C_keep,f,P,options);
+toc
+ 
+plot_components_GUI(data,A_keep,C_keep,b,f,Cn,options)
+ 
 %% extract fluorescence and DF/F on native temporal resolution
 % C is deconvolved activity, C + YrA is non-deconvolved fluorescence 
 % F_df is the DF/F computed on the non-deconvolved fluorescence
-
+ 
 P.p = 2;                    % order of dynamics. Set P.p = 0 for no deconvolution at the moment
 C_us = cell(numFiles,1);    % cell array for thresholded fluorescence
 f_us = cell(numFiles,1);    % cell array for temporal background
@@ -176,11 +194,11 @@ for i = 1:numFiles
     [C_us{i},f_us{i},P_us{i},S_us{i},YrA_us{i}] = update_temporal_components_fast(h5_files(i).name,A_keep,b,Cin(1:end-1,:),Cin(end,:),P,options);
     b_us{i} = max(mm_fun(f_us{i},h5_files(i).name) - A_keep*(C_us{i}*f_us{i}'),0)/norm(f_us{i})^2;
 end
-
-prctfun = @(data) prctfilt(data,30,1000,300);       % first detrend fluorescence (remove 20th percentile on a rolling 1000 timestep window)
+ 
+prctfun = @(data) prctfilt(data,30,1000,300);       % first detrend fluorescence (remove 20%th percentile on a rolling 1000 timestep window)
 F_us = cellfun(@plus,C_us,YrA_us,'un',0);           % cell array for projected fluorescence
 Fd_us = cellfun(prctfun,F_us,'un',0);               % detrended fluorescence
-
+ 
 Ab_d = cell(numFiles,1);                            % now extract projected background fluorescence
 for i = 1:numFiles
     Ab_d{i} = prctfilt((bsxfun(@times, A_keep, 1./sum(A_keep.^2))'*b_us{i})*f_us{i},30,1000,300,0);
@@ -188,26 +206,57 @@ end
     
 F0 = cellfun(@plus, cellfun(@(x,y) x-y,F_us,Fd_us,'un',0), Ab_d,'un',0);   % add and get F0 fluorescence for each component
 F_df = cellfun(@(x,y) x./y, Fd_us, F0 ,'un',0);                            % DF/F value
+C_df = cellfun(@(x,y) x./y, C_us, F0 ,'un',0);                            % DF/F value
 %% detrend each segment and then deconvolve
-
-
+ 
+ 
 % %% perform deconvolution
-% Cd = cellfun(@(x) zeros(size(x)), Fd_us, 'un',0);
-% Sp = cellfun(@(x) zeros(size(x)), Fd_us, 'un',0);
-% bas = zeros(size(Cd{1},1),numFiles);
-% c1 = bas;
-% sn = bas;
-% gn = cell(size(bas));
-% options.p = 2;
-% tt1 = tic;
-% for i = 1:numFiles
-%     c_temp = zeros(size(Cd{i}));
-%     s_temp = c_temp;
-%     f_temp = Fd_us{i};
-%     parfor j = 1:size(Fd_us{i},1)
-%         [c_temp(j,:),bas(j,i),c1(j,i),gn{j,i},sn(j,i),s_temp(j,:)] = constrained_foopsi(f_temp(j,:),[],[],[],[],options);
-%     end
-%     Cd{i} = c_temp;
-%     Sp{i} = s_temp;
-%     toc(tt1);
-% end
+ Cd = cellfun(@(x) zeros(size(x)), Fd_us, 'un',0);
+ Sp = cellfun(@(x) zeros(size(x)), Fd_us, 'un',0);
+ bas = zeros(size(Cd{1},1),numFiles);
+ c1 = bas;
+ sn = bas;
+ gn = cell(size(bas));
+ options.p = 2;
+ tt1 = tic;
+ for i = 1:numFiles
+     c_temp = zeros(size(Cd{i}));
+     s_temp = c_temp;
+     f_temp = Fd_us{i};
+     parfor j = 1:size(Fd_us{i},1)
+         [c_temp(j,:),bas(j,i),c1(j,i),gn{j,i},sn(j,i),s_temp(j,:)] = constrained_foopsi(f_temp(j,:),[],[],[],[],options);
+     end
+     Cd{i} = c_temp;
+     Sp{i} = s_temp;
+     toc(tt1);
+ end
+ 
+ 
+ 
+ %% Save important stuff
+figure;
+[Coor, json_file] = plot_contours(A_keep,Cn,options,1);
+saveas(gcf,strcat(foldername,'/contourmap','.fig')); close;
+pause(10)
+ 
+ 
+save(fullfile(foldername,'Cd'),'Cd','-v7.3');
+save(fullfile(foldername,'Sp'),'Sp','-v7.3');
+save(fullfile(foldername,'Fdf'),'F_df','-v7.3');
+ 
+file_save_loc = strcat(foldername,'/centroids','.json');
+savejson('jmesh',json_file,file_save_loc);
+%
+play_movie({data.Y},{''},0,1000)
+run_movie(data.Y, A_keep, C_keep, Cn, [294,734], Coor, [], 0, 1, 1, fullfile(foldername,'717PosterMovieNoCell'), S)
+
+avi_name =  fullfile(foldername,'717PosterMovieNoCell');
+avi_file = VideoWriter(avi_name);
+    open(avi_file);
+for t=1:T
+    h_img = imagesc(data.Y(:, :, t), min_max);  
+    frame = getframe(gcf);
+    writeVideo(avi_file, frame);
+    drawnow();
+end
+close(avi_file);

@@ -33,7 +33,7 @@ plotControl.thr=0.95;
 plotControl.option=1;
 d1=options.d1;
 d2=options.d2;
-[coor, contourInfo] = plotROIContour( A2, d1, d2, plotControl );
+[coor, contourInfo] = plotROIContour( A, d1, d2, plotControl );
 
 %% extract the signal
 % [ inferred, filtered, raw ] = signalExtraction(Y,A,C,b,f,d1,d2,extractControl)
@@ -60,7 +60,7 @@ d2=options.d2;
 
 extractControl.baselineRatio = 0.25;
 extractControl.thr = 0.95;
-[inferred, filtered, raw] = signalExtraction(Yr,A2,C2,b2,f2,d1,d2,extractControl);
+[inferred, filtered, raw] = signalExtraction(YrA,A,C2,b,f2,d1,d2,extractControl);
 
 %% plot the signals
 % plotActivityTrace( inferred, filtered, raw, plotControl)

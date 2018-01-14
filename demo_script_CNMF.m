@@ -1,27 +1,44 @@
-clear;
-%% load file
+function output = CNMF_demo_script(filename, options)
+% CNMF_DEMO_SCRIPT
+%
+%  OUTPUT = CNMF_DEMO_SCRIPT(FILENAME, [OPTIONS])
+%
+%  Performs a demo calcium source separation using the CNMF
+%  algorithm.
+%
+%  FILENAME should be a multi-frame TIFF file with 2-photon calcium
+%  imaging data. OPTIONS is an optional structure that modifies the
+%  default parameters that are established in CNMFSetParms.
+%
+%  OUTPUT is a structure with all of the variables created while
+%  processing the image. Note that this will include the entire
+%  raw data.
+%
+%  See also: DEMO_SCRIPT, CNMFSetParms
+%   
 
-addpath(genpath('utilities'));
-             
-nam = 'demoMovie.tif';          % insert path to tiff stack here
+
 sframe=1;						% user input: first frame to read (optional, default 1)
 num2read=2000;					% user input: how many frames to read   (optional, default until the end)
-Y = bigread2(nam,sframe,num2read);
+Y = bigread2(filename,sframe,num2read);
 
 %Y = Y - min(Y(:)); 
-if ~isa(Y,'double');    Y = double(Y);  end         % convert to single
+if ~isa(Y,'double')
+	 Y = double(Y);
+end         % convert from single to double
 
-[d1,d2,T] = size(Y);                                % dimensions of dataset
-d = d1*d2;                                          % total number of pixels
+[d1,d2,T] = size(Y);                                % dimensions of dataset, assume T is last
+d = d1*d2;                                          % total number of pixels per T image
 
 %% Set parameters
 
 K = 40;                                           % number of components to be found
 tau = 4;                                          % std of gaussian kernel (size of neuron) 
-p = 2;                                            % order of autoregressive system (p = 0 no dynamics, p=1 just decay, p = 2, both rise and decay)
+p = 2;                                            % order of autoregressive system
+                                                  % (p = 0 no dynamics, p=1 just decay, p = 2, both rise and decay)
 merge_thr = 0.8;                                  % merging threshold
 
-options = CNMFSetParms(...                      
+defoptions = CNMFSetParms(...                      
     'd1',d1,'d2',d2,...                         % dimensions of datasets
     'search_method','dilate','dist',3,...       % search locations when updating spatial components
     'deconv_method','constrained_foopsi',...    % activity deconvolution method
@@ -30,23 +47,30 @@ options = CNMFSetParms(...
     'merge_thr',merge_thr,...                    % merging threshold
     'gSig',tau...
     );
+
+options = structmerge(defoptions,options,'ErrorIfNewField',1);
+
+options,
+
 %% Data pre-processing
 
 [P,Y] = preprocess_data(Y,p);
+
 %% fast initialization of spatial components using greedyROI and HALS
 
 [Ain,Cin,bin,fin,center] = initialize_components(Y,K,tau,options,P);  % initialize
 
 % display centers of found components
-Cn =  correlation_image(Y); %reshape(P.sn,d1,d2);  %max(Y,[],3); %std(Y,[],3); % image statistic (only for display purposes)
-figure;imagesc(Cn);
-    axis equal; axis tight; hold all;
-    scatter(center(:,2),center(:,1),'mo');
-    title('Center of ROIs found from initialization algorithm');
-    drawnow;
+Cn =  correlation_image(Y);
+figure;
+imagesc(Cn);
+axis equal; axis tight; hold all;
+scatter(center(:,2),center(:,1),'mo');
+title('Center of ROIs found from initialization algorithm');
+drawnow;
 
 %% manually refine components (optional)
-refine_components = false;  % flag for manual refinement
+refine_components = true;  % flag for manual refinement
 if refine_components
     [Ain,Cin,center] = manually_refine_components(Y,Ain,Cin,center,Cn,tau,options);
 end
@@ -109,3 +133,5 @@ plot_components_GUI(Yr,A_or,C_or,b2,f2,Cn,options)
 %% make movie
 
 make_patch_video(A_or,C_or,b2,f2,Yr,Coor,options)
+
+output = workspace2struct;

@@ -1,4 +1,4 @@
-function [rval_space,rval_time,max_pr,sizeA,keep] = classify_components(Y,A,C,b,f,YrA,options)
+function [rval_space,rval_time,max_pr,sizeA,keep, fitness, fitness_delta] = classify_components(Y,A,C,b,f,YrA,options)
 
 % perform several tests for component classification:
 %  i)   correlation test using the function classify_comp_corr
@@ -37,8 +37,8 @@ end
 [rval_space,rval_time,ind_space,ind_time] = classify_comp_corr(Y,A,C,b,f,options);
 traces = detrend_df_f(A,b,C,f,YrA,options);
 max_pr = trace_fit_extreme(traces,fr,t_int,sn_fac);
-%fitness = compute_event_exceptionality(traces,0);
-%fitness_delta = compute_event_exceptionality(diff(traces,[],2),0);
+fitness = compute_event_exceptionality(traces,0);
+fitness_delta = compute_event_exceptionality(diff(traces,[],2),0);
 
 sizeA = zeros(size(A,2),1);
 for i = 1:length(sizeA)
